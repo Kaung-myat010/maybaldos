@@ -1,0 +1,19 @@
+{
+    "name": "Maybal dress order records",
+    "short_name": "Maybal",
+    "description": "A dress order records app by Maybal",
+    "start_url": "/maybaldos/",
+    "display": "standalone",
+    "icons": [
+        {
+            "src": "/maybaldos/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/maybaldos/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
