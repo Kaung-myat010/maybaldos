@@ -1,20 +1,24 @@
 <!doctype html>
-<html lang="my">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dress Designer Order Records</title>
-    
     <meta name="theme-color" content="#6800f1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="/maybaldos/icons/icon-192x192.png"> <link rel="apple-touch-icon" sizes="512x512" href="/maybaldos/icons/icon-512x512.png"> <link rel="manifest" href="manifest.json"> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Padauk&amp;display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar&amp;display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="/maybaldos/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/maybaldos/icons/icon-512x512.png">
+    <link rel="manifest" href="/maybaldos/manifest.json">
+    <link rel="manifest" href="/maybaldos/sw.js">
+  <title>Dress Designer Order Records</title> 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"> 
+  <link href="https://fonts.googleapis.com/css2?family=Padauk&amp;display=swap" rel="stylesheet"> 
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar&amp;display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: rgba(104, 0, 241, 0.753);
             --primary-gradient: linear-gradient(45deg, rgb(133, 61, 228), rgb(169, 117, 238));
+            --delete-gradient: linear-gradient(45deg, #ef5350, #e57373);
         }
         * {
             box-sizing: border-box;
@@ -41,32 +45,38 @@
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1); backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.2); position: relative;
         }
-        h1, h2 {
+        h1, h2, h3 {
             text-align: center; color: var(--primary-color);
             text-shadow: 0 0 8px #ffffffa4;
             font-family: 'Padauk', 'Myanmar Text', sans-serif;
         }
         h1 { margin-bottom: 25px; }
         h2 { margin-bottom: 10px; margin-top: 15px; font-size: 1.2em; }
+        h3 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; text-align: left; }
+
         .footer-credit {
             text-align: center; font-size: 10px;
             color: rgba(56, 43, 43, 0.5); margin-top: 15px; font-weight: bold;
         }
-        #overlay {
+        #overlay, #imageEditorOverlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.3); z-index: 15;
             display: none; backdrop-filter: blur(4px);
         }
+        #imageEditorOverlay { z-index: 45; background: rgba(0,0,0,0.6); }
+
         #orderSystem { display: block; }
         #orderControls { display: flex; justify-content: space-between; margin-bottom: 15px; gap: 10px; }
-        #createOrderBtn, #actionOrderBtn, #backToOrdersBtn, #cancelSelectionBtn {
+        #createOrderBtn, #actionOrderBtn, #backToOrdersBtn, #cancelSelectionBtn, .app-button {
             background: var(--primary-gradient); color: white; padding: 8px 15px;
             border-radius: 8px; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.253);
             font-weight: bold; border: 1px solid rgba(255, 255, 255, 0.2); transition: 0.3s ease;
+            text-align: center;
         }
-        #createOrderBtn:hover, #actionOrderBtn:hover, #backToOrdersBtn:hover, #cancelSelectionBtn:hover { transform: scale(1.02); }
+        #createOrderBtn:hover, #actionOrderBtn:hover, #backToOrdersBtn:hover, #cancelSelectionBtn:hover, .app-button:hover { transform: scale(1.02); }
         #backToOrdersBtn, #cancelSelectionBtn { background: linear-gradient(45deg, #666, #999); }
         #cancelSelectionBtn { display: none; }
+        
         #orderList {
             display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
             gap: 15px; margin-top: 15px;
@@ -95,6 +105,7 @@
         #orderList.selection-mode .order-item.selected {
             opacity: 1; border: 2px solid var(--primary-color);
         }
+
         #orderFormContainer, #orderActionIsland {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
             background: rgba(255, 255, 255, 0.95); border-radius: 20px;
@@ -117,7 +128,8 @@
             width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
             justify-content: center; cursor: pointer; transition: all 0.3s ease; color: white; font-size: 18px;
         }
-        .action-icon.delete-icon { background: linear-gradient(45deg, #ef5350, #e57373); }
+        .action-icon.delete-icon { background: var(--delete-gradient); }
+
         #orderDetailView { display: none; position: relative; }
         .close-btn {
             position: absolute; top: -10px; right: -5px; width: 30px; height: 30px;
@@ -138,15 +150,89 @@
             background: rgba(255, 255, 255, 0.9); font-size: 1em;
         }
         #orderDetailForm textarea { resize: vertical; min-height: 80px; }
-        .image-preview-container {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;
+
+        /* --- ALBUM STYLES --- */
+        .album-container { margin-top: 15px; }
+        .album-header { display: flex; justify-content: space-between; align-items: center; }
+        .add-photo-btn { font-size: 0.9em; padding: 6px 12px; }
+        .album-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 8px;
+            min-height: 110px;
         }
-        .image-preview-box { text-align: center; }
-        .image-preview {
-            width: 100%; height: 150px; border-radius: 8px; background: #eee;
-            object-fit: cover; border: 2px dashed #ccc; cursor: pointer;
+        .album-thumbnail {
+            position: relative; width: 100%;
+            padding-top: 100%; border-radius: 8px;
+            overflow: hidden; cursor: pointer; background-color: #eee;
         }
-        .image-preview-box input[type="file"] { display: none; }
+        .album-thumbnail img {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; transition: transform 0.3s ease;
+        }
+        .album-thumbnail:hover img { transform: scale(1.1); }
+        .thumb-delete-btn {
+            position: absolute; top: 5px; right: 5px;
+            width: 24px; height: 24px; border-radius: 50%;
+            background: var(--delete-gradient); color: white;
+            border: none; cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 14px; opacity: 0;
+            transition: opacity 0.3s ease; z-index: 2;
+        }
+        .album-thumbnail:hover .thumb-delete-btn { opacity: 1; }
+        
+        /* --- IMAGE EDITOR STYLES (UPDATED FOR ZOOM/PAN) --- */
+        #imageEditor {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; /* Use full screen */
+            transform: scale(0);
+            background: #f0f0f0; border-radius: 0; /* No radius for full screen */
+            z-index: 50; display: flex; flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        #imageEditor.visible { transform: scale(1); opacity: 1; }
+        .editor-header { padding: 10px 15px; background: #fff; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .editor-title { color: #333; font-size: 1.1em; text-shadow: none; }
+        .editor-close-btn { font-size: 24px; color: #555; cursor: pointer; background: none; border: none; }
+        .editor-canvas-container {
+            flex-grow: 1; position: relative;
+            background-color: #333; /* Darker background for contrast */
+            overflow: hidden; /* Hide anything outside the container */
+            touch-action: none; /* Disable default browser touch actions like pull-to-refresh */
+        }
+        #editorCanvas {
+            position: absolute; /* Position canvas for transform */
+            top: 0; left: 0;
+            cursor: grab; /* Pan cursor by default */
+        }
+        #editorCanvas:active { cursor: grabbing; }
+        #editorCanvas.doodle-mode { cursor: crosshair; }
+        
+        .editor-toolbar { padding: 10px; background: #fff; border-top: 1px solid #ddd; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; flex-shrink: 0; }
+        .editor-toolbar button { padding: 8px 12px; font-size: 0.9em; }
+        .editor-toolbar .delete-btn { background: var(--delete-gradient); }
+
+        .color-palette {
+            display: flex; align-items: center; gap: 8px;
+            padding: 0 5px; border-left: 1px solid #ddd;
+            border-right: 1px solid #ddd; margin: 0 5px;
+        }
+        .color-swatch {
+            width: 24px; height: 24px; border-radius: 50%;
+            cursor: pointer; border: 2px solid transparent; transition: all 0.2s;
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.selected { border-color: #007bff; transform: scale(1.15); }
+        .color-swatch[data-color='white'] { border: 1px solid #ccc; }
+        .color-swatch.selected[data-color='white'] { border: 2px solid #007bff; }
+
         #orderConfirmDialog {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(255, 255, 255, 0.95); border-radius: 15px; padding: 25px;
@@ -160,13 +246,15 @@
         }
         .confirm-btn { background: #ef5350; }
         .cancel-btn { background: #64b5f6; }
+
         @media (max-width: 600px) {
-            .container { padding: 15px; }
+            .container { padding: 15px; margin: 0; max-width: 100%; border-radius: 0; }
             h1 { font-size: 1.5em; }
             #orderList { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-            .image-preview-container { grid-template-columns: 1fr; }
-            .image-preview { height: 200px; }
+            .album-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
             #orderFormContainer, #orderActionIsland, #orderConfirmDialog { width: calc(100% - 40px); }
+            .editor-toolbar { gap: 5px; }
+            .color-palette { padding: 0 2px; margin: 0; }
         }
     </style>
  </head>
@@ -174,6 +262,7 @@
   <div class="container">
    <h1>Dress Order Records</h1>
    <div id="overlay"></div>
+   <div id="imageEditorOverlay"></div>
 
    <div id="orderSystem">
     <div id="orderControls">
@@ -223,15 +312,23 @@
       <div class="form-group"> <label for="fittingDate">Fitting Date</label> <input type="date" id="fittingDate"> </div>
       <div class="form-group"> <label for="pickupDate">Pickup Date</label> <input type="date" id="pickupDate"> </div>
       <div class="form-group"> <label for="orderNotes">Notes</label> <textarea id="orderNotes" placeholder="Special requests, measurements, etc."></textarea> </div>
-      <div class="image-preview-container">
-       <div class="image-preview-box"> <label for="fabricImageFile">Fabric Image</label>
-        <img id="fabricImagePreview" class="image-preview" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="Fabric Preview">
-        <input type="file" id="fabricImageFile" accept="image/*">
-       </div>
-       <div class="image-preview-box"> <label for="designImageFile">Design Image</label>
-        <img id="designImagePreview" class="image-preview" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="Design Preview">
-        <input type="file" id="designImageFile" accept="image/*">
-       </div>
+      
+      <input type="file" id="imageUploader" accept="image/*" multiple style="display: none;">
+      
+      <div class="album-container">
+        <div class="album-header">
+            <h3>Fabric Album</h3>
+            <button type="button" class="app-button add-photo-btn" data-album-type="fabric">Add Photo</button>
+        </div>
+        <div id="fabricAlbumGrid" class="album-grid"></div>
+      </div>
+
+      <div class="album-container">
+        <div class="album-header">
+            <h3>Design Album</h3>
+            <button type="button" class="app-button add-photo-btn" data-album-type="design">Add Photo</button>
+        </div>
+        <div id="designAlbumGrid" class="album-grid"></div>
       </div>
      </form>
     </div>
@@ -239,14 +336,35 @@
    </div>
   </div>
 
+  <div id="imageEditor">
+      <div class="editor-header">
+          <h2 class="editor-title">Image Editor</h2>
+          <button id="editorCloseBtn" class="editor-close-btn">&times;</button>
+      </div>
+      <div class="editor-canvas-container">
+          <canvas id="editorCanvas"></canvas>
+      </div>
+      <div class="editor-toolbar">
+          <button id="addTextBtn" class="app-button">Enter Text</button>
+          <button id="doodleBtn" class="app-button">Doodle</button>
+          
+          <div id="colorPalette" class="color-palette">
+              <div class="color-swatch selected" data-color="red" style="background-color: red;" title="Red"></div>
+              <div class="color-swatch" data-color="blue" style="background-color: blue;" title="Blue"></div>
+              <div class="color-swatch" data-color="yellow" style="background-color: yellow;" title="Yellow"></div>
+              <div class="color-swatch" data-color="white" style="background-color: white;" title="White"></div>
+          </div>
+          
+          <button id="saveCanvasBtn" class="app-button">Save Changes</button>
+          <button id="deleteImageBtn" class="app-button delete-btn">Delete Image</button>
+      </div>
+  </div>
+
+
   <script>
-    // ===================================================================================
-    // SCRIPT START
-    // ===================================================================================
     document.addEventListener('DOMContentLoaded', () => {
 
         // --- 1. DOM Element Selections ---
-        // အသုံးပြုမယ့် HTML element တွေကို အလွယ်တကူခေါ်သုံးနိုင်အောင် variable များဖြင့်ကြေငြာခြင်း
         const orderSystem = document.getElementById('orderSystem');
         const orderList = document.getElementById('orderList');
         const createOrderBtn = document.getElementById('createOrderBtn');
@@ -271,46 +389,65 @@
         const displayOrderName = document.getElementById('displayOrderName');
         const orderDetailForm = document.getElementById('orderDetailForm');
         
+        // Album & Editor Elements
+        const imageUploader = document.getElementById('imageUploader');
+        const fabricAlbumGrid = document.getElementById('fabricAlbumGrid');
+        const designAlbumGrid = document.getElementById('designAlbumGrid');
+        const imageEditor = document.getElementById('imageEditor');
+        const imageEditorOverlay = document.getElementById('imageEditorOverlay');
+        const editorCloseBtn = document.getElementById('editorCloseBtn');
+        const editorCanvas = document.getElementById('editorCanvas');
+        const canvasContainer = document.querySelector('.editor-canvas-container');
+        const addTextBtn = document.getElementById('addTextBtn');
+        const doodleBtn = document.getElementById('doodleBtn');
+        const saveCanvasBtn = document.getElementById('saveCanvasBtn');
+        const deleteImageBtn = document.getElementById('deleteImageBtn');
+        const colorPalette = document.getElementById('colorPalette');
+        const ctx = editorCanvas.getContext('2d');
+
         // --- 2. State Variables ---
-        // App ရဲ့ လက်ရှိအခြေအနေကို မှတ်သားရန် variable များ
-        let db; // IndexedDB object
+        let db;
         let currentViewedOrderId = null;
         let selectionMode = false;
+        let currentEditingImageInfo = { orderId: null, albumType: null, imageId: null };
+        let isDoodling = false;
+        let currentColor = 'red'; 
+        
+        // --- NEW: State for Zoom/Pan ---
+        let currentImage = new Image();
+        let drawingActions = []; // To store all doodles and texts
+        let scale = 1;
+        let originX = 0;
+        let originY = 0;
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+        let initialPinchDistance = null;
+
 
         // --- 3. IndexedDB Database Setup ---
-        // Offline အသုံးပြုနိုင်ရန် browser ထဲတွင် database တည်ဆောက်ခြင်း
         function initDB() {
-            const request = indexedDB.open('dressOrderDB', 1);
-
+            const request = indexedDB.open('dressOrderDB', 2); 
             request.onerror = (event) => console.error('Database error:', event.target.error);
-
             request.onupgradeneeded = (event) => {
                 db = event.target.result;
-                const objectStore = db.createObjectStore('orders', { keyPath: 'id', autoIncrement: true });
-                objectStore.createIndex('name', 'name', { unique: false });
-                console.log('Object store created successfully.');
+                if (!db.objectStoreNames.contains('orders')) {
+                    db.createObjectStore('orders', { keyPath: 'id', autoIncrement: true });
+                }
             };
-
             request.onsuccess = (event) => {
                 db = event.target.result;
-                console.log('Database opened successfully.');
-                renderOrderList(); // DB အောင်မြင်စွာဖွင့်ပြီးလျှင် order list ကို စတင်ပြသမည်
+                renderOrderList();
             };
         }
 
-        // --- 4. Database CRUD Functions (Create, Read, Update, Delete) ---
-        // Database နှင့် အလုပ်လုပ်ရန် function များ
-        
-        // Order အသစ်ထည့်ရန်
+        // --- 4. Database CRUD Functions (No changes here) ---
         const addOrder = (order) => new Promise((resolve, reject) => {
             const transaction = db.transaction(['orders'], 'readwrite');
             const store = transaction.objectStore('orders');
             const request = store.add(order);
-            request.onsuccess = event => resolve(event.target.result); // return the new ID
+            request.onsuccess = event => resolve(event.target.result);
             request.onerror = event => reject(event.target.error);
         });
-
-        // Order များအားလုံးကို ဖတ်ရန်
         const getAllOrders = () => new Promise((resolve, reject) => {
             const transaction = db.transaction(['orders'], 'readonly');
             const store = transaction.objectStore('orders');
@@ -318,8 +455,6 @@
             request.onsuccess = () => resolve(request.result);
             request.onerror = event => reject(event.target.error);
         });
-
-        // Order တစ်ခုကို ID ဖြင့်ဖတ်ရန်
         const getOrder = (id) => new Promise((resolve, reject) => {
             const transaction = db.transaction(['orders'], 'readonly');
             const store = transaction.objectStore('orders');
@@ -327,8 +462,6 @@
             request.onsuccess = () => resolve(request.result);
             request.onerror = event => reject(event.target.error);
         });
-
-        // Order ကို update လုပ်ရန်
         const updateOrder = (order) => new Promise((resolve, reject) => {
             const transaction = db.transaction(['orders'], 'readwrite');
             const store = transaction.objectStore('orders');
@@ -336,8 +469,6 @@
             request.onsuccess = () => resolve();
             request.onerror = event => reject(event.target.error);
         });
-        
-        // Order တစ်ခုကို ID ဖြင့်ဖျက်ရန်
         const deleteOrder = (id) => new Promise((resolve, reject) => {
             const transaction = db.transaction(['orders'], 'readwrite');
             const store = transaction.objectStore('orders');
@@ -345,31 +476,25 @@
             request.onsuccess = () => resolve();
             request.onerror = event => reject(event.target.error);
         });
-        
-        // Order များကို တပြိုင်နက်ဖျက်ရန်
         const deleteMultipleOrders = (ids) => new Promise((resolve, reject) => {
             const transaction = db.transaction(['orders'], 'readwrite');
             const store = transaction.objectStore('orders');
             let completed = 0;
+            if (ids.length === 0) return resolve();
             ids.forEach(id => {
                 const request = store.delete(id);
                 request.onsuccess = () => {
                     completed++;
-                    if (completed === ids.length) {
-                        resolve();
-                    }
+                    if (completed === ids.length) resolve();
                 };
             });
             transaction.onerror = event => reject(event.target.error);
         });
-
-        // --- 5. UI Rendering Functions ---
-        // Data များကို screen ပေါ်တွင်ပြသရန် function များ
         
-        // Order list တစ်ခုလုံးကို ပြသရန်
+        // --- 5. UI Rendering Functions (No changes here) ---
         async function renderOrderList() {
             const orders = await getAllOrders();
-            orderList.innerHTML = ''; // Clear existing list
+            orderList.innerHTML = '';
             if (orders.length === 0) {
                 orderList.innerHTML = `<p style="grid-column: 1 / -1; text-align: center; color: #555;">No orders found. Click 'New Order' to start.</p>`;
                 return;
@@ -388,8 +513,6 @@
                 orderList.appendChild(item);
             });
         }
-        
-        // Order card တစ်ခုချင်းစီကို update လုပ်ရန် (status ပြောင်းလဲမှုအတွက်)
         function updateOrderCard(order) {
             const card = orderList.querySelector(`.order-item[data-id='${order.id}']`);
             if (card) {
@@ -401,69 +524,73 @@
                 nameDiv.textContent = order.name;
             }
         }
-        
-        // --- 6. UI Interaction and Event Handlers ---
-        // User ၏လုပ်ဆောင်ချက်များကိုကိုင်တွယ်ရန် Event Listener များ
-        
-        // "New Order" ခလုတ်ကို နှိပ်သည့်အခါ
+        function renderAlbumGrid(albumType, images) {
+            const grid = albumType === 'fabric' ? fabricAlbumGrid : designAlbumGrid;
+            grid.innerHTML = '';
+            if (!images || images.length === 0) return;
+            
+            images.forEach(image => {
+                const thumbContainer = document.createElement('div');
+                thumbContainer.className = 'album-thumbnail';
+                thumbContainer.dataset.albumType = albumType;
+                thumbContainer.dataset.imageId = image.id;
+
+                const img = document.createElement('img');
+                img.src = image.src;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'thumb-delete-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.title = 'Delete Image';
+                
+                thumbContainer.appendChild(img);
+                thumbContainer.appendChild(deleteBtn);
+                grid.appendChild(thumbContainer);
+            });
+        }
+
+        // --- 6. UI Interaction and Event Handlers (No changes here) ---
         createOrderBtn.addEventListener('click', () => {
             overlay.style.display = 'block';
             orderFormContainer.classList.add('visible');
             orderNameInput.focus();
         });
-        
-        // Order အသစ်ဖန်တီးသည့် form ကို submit လုပ်သည့်အခါ
         orderForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const orderName = orderNameInput.value.trim();
             if (orderName) {
                 const newOrder = {
-                    name: orderName,
-                    customerName: orderName, // Default customer name to order name
-                    status: 'pending',
-                    deadline: '',
-                    fittingDate: '',
-                    pickupDate: '',
-                    notes: '',
-                    fabricImage: '',
-                    designImage: ''
+                    name: orderName, customerName: orderName, status: 'pending',
+                    deadline: '', fittingDate: '', pickupDate: '', notes: '',
+                    fabricImages: [], designImages: []
                 };
                 const newId = await addOrder(newOrder);
                 orderForm.reset();
                 hideOverlayAndForms();
                 await renderOrderList();
-                showOrderDetailView(newId); // Show detail view for the new order
+                showOrderDetailView(newId);
             }
         });
-        
-        // "Actions" ခလုတ်ကို နှိပ်သည့်အခါ (Selection Mode)
-        actionOrderBtn.addEventListener('click', toggleSelectionMode);
+        actionOrderBtn.addEventListener('click', () => toggleSelectionMode(true));
         cancelSelectionBtn.addEventListener('click', () => toggleSelectionMode(false));
-        
-        function toggleSelectionMode(forceOff = null) {
-            selectionMode = forceOff !== null ? forceOff : !selectionMode;
+        function toggleSelectionMode(forceState) {
+            selectionMode = forceState;
             orderList.classList.toggle('selection-mode', selectionMode);
             createOrderBtn.style.display = selectionMode ? 'none' : 'flex';
             actionOrderBtn.style.display = selectionMode ? 'none' : 'flex';
             cancelSelectionBtn.style.display = selectionMode ? 'flex' : 'none';
-            
-            if (selectionMode) {
-                orderActionIsland.classList.add('visible');
-            } else {
-                orderActionIsland.classList.remove('visible');
-                // Deselect all items
+            orderActionIsland.classList.toggle('visible', selectionMode);
+
+            if (!selectionMode) {
                 document.querySelectorAll('.order-item.selected').forEach(item => {
                     item.classList.remove('selected');
                     item.querySelector('.order-checkbox').checked = false;
                 });
             }
         }
-        
-        // Order card ကို နှိပ်သည့်အခါ
         orderList.addEventListener('click', (e) => {
             const item = e.target.closest('.order-item');
             if (!item) return;
-
             const id = parseInt(item.dataset.id);
             if (selectionMode) {
                 item.classList.toggle('selected');
@@ -472,14 +599,10 @@
                 showOrderDetailView(id);
             }
         });
-
-        // Detail View ကိုပြသရန်
         async function showOrderDetailView(id) {
             currentViewedOrderId = id;
             const order = await getOrder(id);
             if (!order) return;
-
-            // Populate form
             displayOrderName.textContent = order.name;
             orderDetailForm.querySelector('#customerName').value = order.customerName || '';
             orderDetailForm.querySelector('#orderStatus').value = order.status || 'pending';
@@ -487,61 +610,84 @@
             orderDetailForm.querySelector('#fittingDate').value = order.fittingDate || '';
             orderDetailForm.querySelector('#pickupDate').value = order.pickupDate || '';
             orderDetailForm.querySelector('#orderNotes').value = order.notes || '';
-            
-            // Populate images
-            const fabricPreview = document.getElementById('fabricImagePreview');
-            const designPreview = document.getElementById('designImagePreview');
-            fabricPreview.src = order.fabricImage || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
-            designPreview.src = order.designImage || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
-
-            // Show view
+            renderAlbumGrid('fabric', order.fabricImages);
+            renderAlbumGrid('design', order.designImages);
             orderSystem.style.display = 'none';
             orderDetailView.style.display = 'block';
             backToOrdersBtn.style.display = 'block';
             createOrderBtn.style.display = 'none';
             actionOrderBtn.style.display = 'none';
         }
-        
-        // Detail form ထဲမှ data ပြောင်းလဲမှုတိုင်းကို auto-save လုပ်ရန်
         orderDetailForm.addEventListener('change', async (e) => {
-            if (!currentViewedOrderId) return;
-            
+            if (!currentViewedOrderId || e.target.type === 'file') return;
             const order = await getOrder(currentViewedOrderId);
             if(!order) return;
-
-            // Update text/date/select values
             order.customerName = document.getElementById('customerName').value;
+            order.name = document.getElementById('customerName').value;
             order.status = document.getElementById('orderStatus').value;
             order.deadline = document.getElementById('orderDeadline').value;
             order.fittingDate = document.getElementById('fittingDate').value;
             order.pickupDate = document.getElementById('pickupDate').value;
             order.notes = document.getElementById('orderNotes').value;
-            
-            // Handle image file changes
-            if (e.target.type === 'file') {
-                const file = e.target.files[0];
-                if (file) {
-                    const base64String = await fileToBase64(file);
-                    if (e.target.id === 'fabricImageFile') {
-                        order.fabricImage = base64String;
-                        document.getElementById('fabricImagePreview').src = base64String;
-                    } else if (e.target.id === 'designImageFile') {
-                        order.designImage = base64String;
-                        document.getElementById('designImagePreview').src = base64String;
-                    }
-                }
-            }
-            
             await updateOrder(order);
-            updateOrderCard(order); // Live update the card in the list
-            console.log('Order saved automatically.');
+            updateOrderCard(order);
+            displayOrderName.textContent = order.name;
         });
-        
-        // ပုံရွေးရန် click လုပ်နိုင်အောင်
-        document.getElementById('fabricImagePreview').addEventListener('click', () => document.getElementById('fabricImageFile').click());
-        document.getElementById('designImagePreview').addEventListener('click', () => document.getElementById('designImageFile').click());
+        document.querySelectorAll('.add-photo-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                imageUploader.dataset.currentAlbum = e.target.dataset.albumType;
+                imageUploader.click();
+            });
+        });
+        imageUploader.addEventListener('change', async (e) => {
+            const albumType = e.target.dataset.currentAlbum;
+            if (!albumType || !e.target.files.length) return;
+            const order = await getOrder(currentViewedOrderId);
+            if (!order) return;
+            if (!order.fabricImages) order.fabricImages = [];
+            if (!order.designImages) order.designImages = [];
+            for (const file of Array.from(e.target.files)) {
+                const base64String = await fileToBase64(file);
+                const newImage = { id: Date.now() + Math.random(), src: base64String };
+                (albumType === 'fabric' ? order.fabricImages : order.designImages).push(newImage);
+            }
+            await updateOrder(order);
+            renderAlbumGrid(albumType, albumType === 'fabric' ? order.fabricImages : order.designImages);
+            e.target.value = '';
+        });
+        [fabricAlbumGrid, designAlbumGrid].forEach(grid => {
+            grid.addEventListener('click', async e => {
+                const thumb = e.target.closest('.album-thumbnail');
+                if (!thumb) return;
+                const albumType = thumb.dataset.albumType;
+                const imageId = parseFloat(thumb.dataset.imageId);
+                if (e.target.classList.contains('thumb-delete-btn')) {
+                    e.stopPropagation(); 
+                    if (confirm('Are you sure you want to delete this image?')) {
+                        await deleteImageFromAlbum(albumType, imageId);
+                    }
+                } else {
+                    const order = await getOrder(currentViewedOrderId);
+                    const images = albumType === 'fabric' ? order.fabricImages : order.designImages;
+                    const image = images.find(img => img.id === imageId);
+                    if (image) openImageEditor(albumType, imageId, image.src, image.drawingActions || []);
+                }
+            });
+        });
+        async function deleteImageFromAlbum(albumType, imageId, fromEditor = false) {
+             const order = await getOrder(currentViewedOrderId);
+             if (!order) return;
+             let album = (albumType === 'fabric' ? order.fabricImages : order.designImages);
+             const initialLength = album.length;
+             album = album.filter(img => img.id !== imageId);
+             if (albumType === 'fabric') order.fabricImages = album; else order.designImages = album;
 
-        // Detail View ကို ပိတ်ရန် (သို့) နောက်ပြန်သွားရန်
+             if(album.length < initialLength){
+                await updateOrder(order);
+                renderAlbumGrid(albumType, album);
+                if (fromEditor) closeImageEditor();
+             }
+        }
         const backToList = () => {
             orderDetailView.style.display = 'none';
             orderSystem.style.display = 'block';
@@ -549,50 +695,317 @@
             createOrderBtn.style.display = 'flex';
             actionOrderBtn.style.display = 'flex';
             currentViewedOrderId = null;
-            renderOrderList(); // Refresh list in case names changed
+            renderOrderList();
         };
         closeDetailViewBtn.addEventListener('click', backToList);
         backToOrdersBtn.addEventListener('click', backToList);
         
-        // --- 7. Bulk Actions and Dialogs ---
-        // အများလိုက်လုပ်ဆောင်မှုများနှင့် သတိပေး dialog များ
-        
-        // Delete icon ကို နှိပ်သည့်အခါ
+        // --- 7. Bulk Actions and Dialogs (No changes here) ---
         orderIslandDeleteBtn.addEventListener('click', () => {
-            const selectedItems = document.querySelectorAll('.order-item.selected');
-            if (selectedItems.length > 0) {
+            if (document.querySelectorAll('.order-item.selected').length > 0) {
                 overlay.style.display = 'block';
                 orderConfirmDialog.style.display = 'block';
             } else {
                 alert('Please select at least one order to delete.');
             }
         });
-
-        // Delete ကို confirm လုပ်သည့်အခါ
         confirmOrderDelete.addEventListener('click', async () => {
             const selectedIds = Array.from(document.querySelectorAll('.order-item.selected'))
                 .map(item => parseInt(item.dataset.id));
-            
             await deleteMultipleOrders(selectedIds);
             hideOverlayAndForms();
-            toggleSelectionMode(false); // Exit selection mode
+            toggleSelectionMode(false);
             await renderOrderList();
         });
-
-        // Delete ကို cancel လုပ်သည့်အခါ
         cancelOrderDelete.addEventListener('click', hideOverlayAndForms);
         overlay.addEventListener('click', hideOverlayAndForms);
-
-        // --- 8. Helper Functions ---
-        // အထောက်အကူပြု function များ
         
+        // --- 8. IMAGE EDITOR LOGIC (HEAVILY UPDATED) ---
+
+        function openImageEditor(albumType, imageId, imageSrc, existingActions) {
+            currentEditingImageInfo = { orderId: currentViewedOrderId, albumType, imageId };
+            imageEditorOverlay.style.display = 'block';
+            imageEditor.classList.add('visible');
+            
+            // Reset state for new image
+            drawingActions = existingActions ? [...existingActions] : [];
+            
+            currentImage.onload = () => {
+                editorCanvas.width = currentImage.width;
+                editorCanvas.height = currentImage.height;
+                resetAndCenterImage();
+            };
+            currentImage.src = imageSrc;
+        }
+
+        function resetAndCenterImage() {
+            scale = Math.min(canvasContainer.clientWidth / currentImage.width, canvasContainer.clientHeight / currentImage.height);
+            originX = (canvasContainer.clientWidth - (currentImage.width * scale)) / 2;
+            originY = (canvasContainer.clientHeight - (currentImage.height * scale)) / 2;
+            redrawCanvas();
+        }
+        
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height); // Clear the canvas with its native size
+            
+            // Create a temporary canvas to draw on, which is the size of the container
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvasContainer.clientWidth;
+            tempCanvas.height = canvasContainer.clientHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Draw the transformed image onto the temp canvas
+            tempCtx.save();
+            tempCtx.translate(originX, originY);
+            tempCtx.scale(scale, scale);
+            tempCtx.drawImage(currentImage, 0, 0);
+            
+            // Draw all stored actions (doodles, text)
+            drawingActions.forEach(action => {
+                if (action.type === 'path') {
+                    tempCtx.strokeStyle = action.color;
+                    tempCtx.lineWidth = action.width;
+                    tempCtx.lineCap = 'round';
+                    tempCtx.lineJoin = 'round';
+                    tempCtx.beginPath();
+                    tempCtx.moveTo(action.points[0].x, action.points[0].y);
+                    for (let i = 1; i < action.points.length; i++) {
+                        tempCtx.lineTo(action.points[i].x, action.points[i].y);
+                    }
+                    tempCtx.stroke();
+                } else if (action.type === 'text') {
+                    tempCtx.font = action.font;
+                    tempCtx.fillStyle = action.color;
+                    tempCtx.fillText(action.text, action.x, action.y);
+                }
+            });
+            tempCtx.restore();
+
+            // Now, draw the temp canvas content onto the main visible canvas
+            // This effectively clears the old frame and draws the new one without needing to resize the main canvas element
+            ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height); // clear main canvas
+            editorCanvas.width = tempCanvas.width; // match size
+            editorCanvas.height = tempCanvas.height;
+            ctx.drawImage(tempCanvas, 0, 0);
+        }
+
+        function closeImageEditor() {
+            imageEditorOverlay.style.display = 'none';
+            imageEditor.classList.remove('visible');
+            currentEditingImageInfo = { orderId: null, albumType: null, imageId: null };
+            isDoodling = false;
+            editorCanvas.classList.remove('doodle-mode');
+            drawingActions = []; // Clear actions
+        }
+
+        editorCloseBtn.addEventListener('click', closeImageEditor);
+        
+        // --- Editor Toolbar Button Handlers ---
+        colorPalette.addEventListener('click', (e) => {
+            const swatch = e.target.closest('.color-swatch');
+            if (!swatch) return;
+            currentColor = swatch.dataset.color;
+            colorPalette.querySelector('.selected').classList.remove('selected');
+            swatch.classList.add('selected');
+        });
+
+        addTextBtn.addEventListener('click', () => {
+            const text = prompt("Enter text to add:");
+            if (!text) return;
+            alert("Click on the image to place the text.");
+            
+            const placeText = (e) => {
+                const {x, y} = getCanvasCoords(e);
+                const fontSize = editorCanvas.width / 17 / scale; // Adjust font size based on zoom
+
+                drawingActions.push({
+                    type: 'text', text: text, x: x, y: y,
+                    font: `${fontSize}px Padauk`,
+                    color: currentColor
+                });
+                redrawCanvas();
+                editorCanvas.removeEventListener('click', placeText);
+            };
+            editorCanvas.addEventListener('click', placeText, {once: true});
+        });
+
+        doodleBtn.addEventListener('click', () => {
+            isDoodling = !isDoodling;
+            editorCanvas.classList.toggle('doodle-mode', isDoodling);
+            doodleBtn.textContent = isDoodling ? "Stop Doodling" : "Doodle";
+        });
+        
+        deleteImageBtn.addEventListener('click', async () => {
+            const { albumType, imageId } = currentEditingImageInfo;
+            if(albumType && imageId && confirm('Are you sure you want to delete this image permanently?')){
+                await deleteImageFromAlbum(albumType, imageId, true);
+            }
+        });
+
+        saveCanvasBtn.addEventListener('click', async () => {
+            const { orderId, albumType, imageId } = currentEditingImageInfo;
+            if (!orderId || !albumType || !imageId) return;
+
+            // Create a final canvas at the original image resolution
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = currentImage.width;
+            finalCanvas.height = currentImage.height;
+            const finalCtx = finalCanvas.getContext('2d');
+            
+            // Draw the original image
+            finalCtx.drawImage(currentImage, 0, 0);
+
+            // Draw all the actions onto it
+            drawingActions.forEach(action => {
+                if (action.type === 'path') {
+                    finalCtx.strokeStyle = action.color;
+                    finalCtx.lineWidth = action.width;
+                    finalCtx.lineCap = 'round';
+                    finalCtx.lineJoin = 'round';
+                    finalCtx.beginPath();
+                    finalCtx.moveTo(action.points[0].x, action.points[0].y);
+                    for (let i = 1; i < action.points.length; i++) {
+                        finalCtx.lineTo(action.points[i].x, action.points[i].y);
+                    }
+                    finalCtx.stroke();
+                } else if (action.type === 'text') {
+                    finalCtx.font = action.font;
+                    finalCtx.fillStyle = action.color;
+                    finalCtx.fillText(action.text, action.x, action.y);
+                }
+            });
+
+            const newSrc = finalCanvas.toDataURL('image/png');
+            const order = await getOrder(orderId);
+            
+            const imageList = albumType === 'fabric' ? order.fabricImages : order.designImages;
+            const imageIndex = imageList.findIndex(img => img.id === imageId);
+
+            if (imageIndex > -1) {
+                imageList[imageIndex].src = newSrc;
+                imageList[imageIndex].drawingActions = drawingActions; // Save the drawing actions too
+                await updateOrder(order);
+                closeImageEditor();
+                renderAlbumGrid(albumType, imageList);
+                alert("Image saved successfully!");
+            }
+        });
+
+        // --- Canvas Event Handlers for Pan, Zoom, and Draw ---
+        
+        function getCanvasCoords(e) {
+            const rect = editorCanvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left - originX) / scale,
+                y: (clientY - rect.top - originY) / scale
+            };
+        }
+
+        function handleMouseDown(e) {
+            if (isDoodling) {
+                const newPath = { type: 'path', color: currentColor, width: 5, points: [getCanvasCoords(e)] };
+                drawingActions.push(newPath);
+                editorCanvas.addEventListener('mousemove', handleDoodleMove);
+                editorCanvas.addEventListener('touchmove', handleDoodleMove);
+            } else {
+                isPanning = true;
+                panStart.x = e.touches ? e.touches[0].clientX : e.clientX;
+                panStart.y = e.touches ? e.touches[0].clientY : e.clientY;
+            }
+        }
+
+        function handleMouseUp() {
+            isPanning = false;
+            initialPinchDistance = null;
+            editorCanvas.removeEventListener('mousemove', handleDoodleMove);
+            editorCanvas.removeEventListener('touchmove', handleDoodleMove);
+        }
+
+        function handleMouseMove(e) {
+            e.preventDefault();
+            if (isPanning) {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                originX += clientX - panStart.x;
+                originY += clientY - panStart.y;
+                panStart.x = clientX;
+                panStart.y = clientY;
+                redrawCanvas();
+            }
+        }
+        
+        function handleDoodleMove(e){
+            e.preventDefault();
+            drawingActions[drawingActions.length - 1].points.push(getCanvasCoords(e));
+            redrawCanvas();
+        }
+
+        function handleTouchMove(e) {
+             e.preventDefault();
+            if (e.touches.length === 2) { // Pinch Zoom
+                handlePinch(e);
+            } else if (e.touches.length === 1) { // Pan or Doodle
+                if(isDoodling) handleDoodleMove(e);
+                else handleMouseMove(e);
+            }
+        }
+        
+        function getPinchDistance(e) {
+            return Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        }
+
+        function handlePinch(e) {
+            const newDist = getPinchDistance(e);
+            if(initialPinchDistance == null) {
+                initialPinchDistance = newDist;
+                return;
+            }
+            const scaleFactor = newDist / initialPinchDistance;
+            
+            // Adjust origin to zoom towards the center of the pinch
+            const rect = editorCanvas.getBoundingClientRect();
+            const pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+            const pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+            
+            originX = pinchCenterX - (pinchCenterX - originX) * scaleFactor;
+            originY = pinchCenterY - (pinchCenterY - originY) * scaleFactor;
+            scale *= scaleFactor;
+
+            initialPinchDistance = newDist;
+            redrawCanvas();
+        }
+        
+        function handleWheel(e) {
+            e.preventDefault();
+            const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+            const rect = editorCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            originX = mouseX - (mouseX - originX) * scaleFactor;
+            originY = mouseY - (mouseY - originY) * scaleFactor;
+            scale *= scaleFactor;
+            redrawCanvas();
+        }
+
+        editorCanvas.addEventListener('mousedown', handleMouseDown);
+        editorCanvas.addEventListener('mouseup', handleMouseUp);
+        editorCanvas.addEventListener('mouseleave', handleMouseUp);
+        editorCanvas.addEventListener('mousemove', handleMouseMove);
+        editorCanvas.addEventListener('wheel', handleWheel);
+        
+        editorCanvas.addEventListener('touchstart', handleMouseDown);
+        editorCanvas.addEventListener('touchend', handleMouseUp);
+        editorCanvas.addEventListener('touchmove', handleTouchMove);
+
+        // --- 9. Helper Functions ---
         function hideOverlayAndForms() {
             overlay.style.display = 'none';
             orderFormContainer.classList.remove('visible');
             orderConfirmDialog.style.display = 'none';
         }
-        
-        // Image file ကို Base64 string သို့ပြောင်းရန်
         const fileToBase64 = (file) => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -600,26 +1013,24 @@
             reader.onerror = error => reject(error);
         });
 
-        // --- 9. Initialize the App ---
-        // App ကိုစတင်ခြင်း
+        // --- 10. Initialize the App ---
         initDB();
-
-        // --- 10. PWA Service Worker Registration ---
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
-            });
-        }
     });
-    // ===================================================================================
-    // SCRIPT END
-    // ===================================================================================
   </script>
+
+     <script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js') // ဒီနေရာမှာ sw.js ကို register လုပ်ပါတယ်
+            .then(registration => {
+                console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(err => {
+                console.log('ServiceWorker registration failed: ', err);
+            });
+    });
+}
+
+</script>
  
 </body></html>
