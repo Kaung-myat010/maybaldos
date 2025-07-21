@@ -198,9 +198,18 @@
             opacity: 0;
         }
         #imageEditor.visible { transform: scale(1); opacity: 1; }
-        .editor-header { padding: 10px 15px; background: #fff; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .editor-title { color: #333; font-size: 1.1em; text-shadow: none; }
+        .editor-header { padding: 10px 15px; background: #fff; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
+        .editor-header-main { display: flex; justify-content: space-between; align-items: center; }
+        .editor-title { color: #333; font-size: 1.1em; text-shadow: none; text-align: left; }
         .editor-close-btn { font-size: 24px; color: #555; cursor: pointer; background: none; border: none; }
+        /* -- NEW STYLE for Metadata -- */
+        #imageMetadataDisplay {
+            font-size: 0.75em; color: #555; background-color: #f0f0f0;
+            padding: 8px; border-radius: 5px; margin-top: 8px; line-height: 1.4;
+            border: 1px solid #ddd;
+        }
+        #imageMetadataDisplay strong { color: #222; }
+
         .editor-canvas-container {
             flex-grow: 1; position: relative;
             background-color: #333; /* Darker background for contrast */
@@ -338,8 +347,11 @@
 
   <div id="imageEditor">
       <div class="editor-header">
-          <h2 class="editor-title">Image Editor</h2>
-          <button id="editorCloseBtn" class="editor-close-btn">&times;</button>
+          <div class="editor-header-main">
+              <h2 class="editor-title">Image Editor</h2>
+              <button id="editorCloseBtn" class="editor-close-btn">×</button>
+          </div>
+          <div id="imageMetadataDisplay"></div>
       </div>
       <div class="editor-canvas-container">
           <canvas id="editorCanvas"></canvas>
@@ -403,6 +415,7 @@
         const saveCanvasBtn = document.getElementById('saveCanvasBtn');
         const deleteImageBtn = document.getElementById('deleteImageBtn');
         const colorPalette = document.getElementById('colorPalette');
+        const imageMetadataDisplay = document.getElementById('imageMetadataDisplay'); // <-- NEW: Select the metadata display
         const ctx = editorCanvas.getContext('2d');
 
         // --- 2. State Variables ---
@@ -549,7 +562,7 @@
             });
         }
 
-        // --- 6. UI Interaction and Event Handlers (No changes here) ---
+        // --- 6. UI Interaction and Event Handlers (MODIFIED) ---
         createOrderBtn.addEventListener('click', () => {
             overlay.style.display = 'block';
             orderFormContainer.classList.add('visible');
@@ -639,6 +652,8 @@
                 imageUploader.click();
             });
         });
+
+        // ▼▼▼ MODIFIED: Capture file metadata on upload ▼▼▼
         imageUploader.addEventListener('change', async (e) => {
             const albumType = e.target.dataset.currentAlbum;
             if (!albumType || !e.target.files.length) return;
@@ -646,15 +661,28 @@
             if (!order) return;
             if (!order.fabricImages) order.fabricImages = [];
             if (!order.designImages) order.designImages = [];
+
             for (const file of Array.from(e.target.files)) {
                 const base64String = await fileToBase64(file);
-                const newImage = { id: Date.now() + Math.random(), src: base64String };
+                // Create image object with metadata
+                const newImage = { 
+                    id: Date.now() + Math.random(), 
+                    src: base64String,
+                    metadata: {
+                        name: file.name,
+                        size: file.size, // size in bytes
+                        type: file.type,
+                        uploadedAt: new Date().toISOString() // Store current date
+                    }
+                };
                 (albumType === 'fabric' ? order.fabricImages : order.designImages).push(newImage);
             }
             await updateOrder(order);
             renderAlbumGrid(albumType, albumType === 'fabric' ? order.fabricImages : order.designImages);
             e.target.value = '';
         });
+        
+        // ▼▼▼ MODIFIED: Pass the whole image object to the editor ▼▼▼
         [fabricAlbumGrid, designAlbumGrid].forEach(grid => {
             grid.addEventListener('click', async e => {
                 const thumb = e.target.closest('.album-thumbnail');
@@ -669,11 +697,14 @@
                 } else {
                     const order = await getOrder(currentViewedOrderId);
                     const images = albumType === 'fabric' ? order.fabricImages : order.designImages;
-                    const image = images.find(img => img.id === imageId);
-                    if (image) openImageEditor(albumType, imageId, image.src, image.drawingActions || []);
+                    const imageObject = images.find(img => img.id === imageId);
+                    if (imageObject) {
+                        openImageEditor(albumType, imageObject); // Pass the whole object
+                    }
                 }
             });
         });
+
         async function deleteImageFromAlbum(albumType, imageId, fromEditor = false) {
              const order = await getOrder(currentViewedOrderId);
              if (!order) return;
@@ -722,12 +753,28 @@
         
         // --- 8. IMAGE EDITOR LOGIC (HEAVILY UPDATED) ---
 
-        function openImageEditor(albumType, imageId, imageSrc, existingActions) {
+        // ▼▼▼ MODIFIED: Accept image object and display metadata ▼▼▼
+        function openImageEditor(albumType, imageObject) {
+            const { id: imageId, src: imageSrc, drawingActions: existingActions, metadata } = imageObject;
+
             currentEditingImageInfo = { orderId: currentViewedOrderId, albumType, imageId };
             imageEditorOverlay.style.display = 'block';
             imageEditor.classList.add('visible');
+
+            // Display metadata if it exists
+            if (metadata) {
+                const formattedSize = formatBytes(metadata.size);
+                const uploadDate = new Date(metadata.uploadedAt).toLocaleString('en-GB'); // Format date
+                imageMetadataDisplay.innerHTML = `
+                    <strong>File:</strong> ${metadata.name}<br>
+                    <strong>Size:</strong> ${formattedSize} | <strong>Uploaded:</strong> ${uploadDate}
+                `;
+                imageMetadataDisplay.style.display = 'block';
+            } else {
+                // Hide for older images without metadata
+                imageMetadataDisplay.style.display = 'none';
+            }
             
-            // Reset state for new image
             drawingActions = existingActions ? [...existingActions] : [];
             
             currentImage.onload = () => {
@@ -746,21 +793,18 @@
         }
         
         function redrawCanvas() {
-            ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height); // Clear the canvas with its native size
+            ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height); 
             
-            // Create a temporary canvas to draw on, which is the size of the container
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = canvasContainer.clientWidth;
             tempCanvas.height = canvasContainer.clientHeight;
             const tempCtx = tempCanvas.getContext('2d');
 
-            // Draw the transformed image onto the temp canvas
             tempCtx.save();
             tempCtx.translate(originX, originY);
             tempCtx.scale(scale, scale);
             tempCtx.drawImage(currentImage, 0, 0);
             
-            // Draw all stored actions (doodles, text)
             drawingActions.forEach(action => {
                 if (action.type === 'path') {
                     tempCtx.strokeStyle = action.color;
@@ -781,10 +825,8 @@
             });
             tempCtx.restore();
 
-            // Now, draw the temp canvas content onto the main visible canvas
-            // This effectively clears the old frame and draws the new one without needing to resize the main canvas element
-            ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height); // clear main canvas
-            editorCanvas.width = tempCanvas.width; // match size
+            ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height); 
+            editorCanvas.width = tempCanvas.width;
             editorCanvas.height = tempCanvas.height;
             ctx.drawImage(tempCanvas, 0, 0);
         }
@@ -795,7 +837,7 @@
             currentEditingImageInfo = { orderId: null, albumType: null, imageId: null };
             isDoodling = false;
             editorCanvas.classList.remove('doodle-mode');
-            drawingActions = []; // Clear actions
+            drawingActions = []; 
         }
 
         editorCloseBtn.addEventListener('click', closeImageEditor);
@@ -816,7 +858,7 @@
             
             const placeText = (e) => {
                 const {x, y} = getCanvasCoords(e);
-                const fontSize = editorCanvas.width / 17 / scale; // Adjust font size based on zoom
+                const fontSize = editorCanvas.width / 17 / scale;
 
                 drawingActions.push({
                     type: 'text', text: text, x: x, y: y,
@@ -846,16 +888,13 @@
             const { orderId, albumType, imageId } = currentEditingImageInfo;
             if (!orderId || !albumType || !imageId) return;
 
-            // Create a final canvas at the original image resolution
             const finalCanvas = document.createElement('canvas');
             finalCanvas.width = currentImage.width;
             finalCanvas.height = currentImage.height;
             const finalCtx = finalCanvas.getContext('2d');
             
-            // Draw the original image
             finalCtx.drawImage(currentImage, 0, 0);
 
-            // Draw all the actions onto it
             drawingActions.forEach(action => {
                 if (action.type === 'path') {
                     finalCtx.strokeStyle = action.color;
@@ -883,7 +922,7 @@
 
             if (imageIndex > -1) {
                 imageList[imageIndex].src = newSrc;
-                imageList[imageIndex].drawingActions = drawingActions; // Save the drawing actions too
+                imageList[imageIndex].drawingActions = drawingActions; 
                 await updateOrder(order);
                 closeImageEditor();
                 renderAlbumGrid(albumType, imageList);
@@ -891,8 +930,7 @@
             }
         });
 
-        // --- Canvas Event Handlers for Pan, Zoom, and Draw ---
-        
+        // --- Canvas Event Handlers for Pan, Zoom, and Draw (No changes here) ---
         function getCanvasCoords(e) {
             const rect = editorCanvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -902,7 +940,6 @@
                 y: (clientY - rect.top - originY) / scale
             };
         }
-
         function handleMouseDown(e) {
             if (isDoodling) {
                 const newPath = { type: 'path', color: currentColor, width: 5, points: [getCanvasCoords(e)] };
@@ -915,14 +952,12 @@
                 panStart.y = e.touches ? e.touches[0].clientY : e.clientY;
             }
         }
-
         function handleMouseUp() {
             isPanning = false;
             initialPinchDistance = null;
             editorCanvas.removeEventListener('mousemove', handleDoodleMove);
             editorCanvas.removeEventListener('touchmove', handleDoodleMove);
         }
-
         function handleMouseMove(e) {
             e.preventDefault();
             if (isPanning) {
@@ -935,27 +970,23 @@
                 redrawCanvas();
             }
         }
-        
         function handleDoodleMove(e){
             e.preventDefault();
             drawingActions[drawingActions.length - 1].points.push(getCanvasCoords(e));
             redrawCanvas();
         }
-
         function handleTouchMove(e) {
              e.preventDefault();
-            if (e.touches.length === 2) { // Pinch Zoom
+            if (e.touches.length === 2) { 
                 handlePinch(e);
-            } else if (e.touches.length === 1) { // Pan or Doodle
+            } else if (e.touches.length === 1) { 
                 if(isDoodling) handleDoodleMove(e);
                 else handleMouseMove(e);
             }
         }
-        
         function getPinchDistance(e) {
             return Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         }
-
         function handlePinch(e) {
             const newDist = getPinchDistance(e);
             if(initialPinchDistance == null) {
@@ -964,7 +995,6 @@
             }
             const scaleFactor = newDist / initialPinchDistance;
             
-            // Adjust origin to zoom towards the center of the pinch
             const rect = editorCanvas.getBoundingClientRect();
             const pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
             const pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
@@ -976,7 +1006,6 @@
             initialPinchDistance = newDist;
             redrawCanvas();
         }
-        
         function handleWheel(e) {
             e.preventDefault();
             const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
@@ -989,13 +1018,11 @@
             scale *= scaleFactor;
             redrawCanvas();
         }
-
         editorCanvas.addEventListener('mousedown', handleMouseDown);
         editorCanvas.addEventListener('mouseup', handleMouseUp);
         editorCanvas.addEventListener('mouseleave', handleMouseUp);
         editorCanvas.addEventListener('mousemove', handleMouseMove);
         editorCanvas.addEventListener('wheel', handleWheel);
-        
         editorCanvas.addEventListener('touchstart', handleMouseDown);
         editorCanvas.addEventListener('touchend', handleMouseUp);
         editorCanvas.addEventListener('touchmove', handleTouchMove);
@@ -1012,13 +1039,24 @@
             reader.onload = () => resolve(reader.result);
             reader.onerror = error => reject(error);
         });
+        
+        // ▼▼▼ NEW HELPER: Format file size to be human-readable ▼▼▼
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
 
         // --- 10. Initialize the App ---
         initDB();
     });
   </script>
 
-     <script>
+  <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js') // ဒီနေရာမှာ sw.js ကို register လုပ်ပါတယ်
